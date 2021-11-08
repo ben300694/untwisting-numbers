@@ -1,0 +1,113 @@
+#########################################################################
+#### Qd computes and orders d invariants (recording short vectors) of a 
+#### positive-definite intersection pairing Q.
+####
+####
+#### --- Parameters
+####
+#### Optional parameter full: if true,
+#### short characteristic covectors are taken in the full hypercube
+#### -Q_ii&lt;=K_i&lt;=Q_ii (gets full set of short representatives)
+#### If false or omitted, just look in
+#### -Q_ii&lt;=K_i&lt;=Q_ii-2 (faster)
+####
+#### Optional paramter vectors: if true, output a list of short vectors
+#### with each d invariant         
+#########################################################################
+
+Qd:=proc(Q::Matrix,full::boolean:=false,vectors::boolean:=false)
+
+local p, rankQ, Qinv, K, sqK, dK, QinvK, dlist, QinvKlist,topadjust,Klistno,pointer,i,tempcount,
+newclassflag,nextK,m,Korder,spinfound,spinindex,S,Uq,biggerthanone,exponents,numberexp,darray,thiselementindex,indexvector,j;
+
+
+###########################################################################
+## nextK moves K to the next characteristic vector in the &quot;hypercuboid&quot;
+nextK:=proc()
+if K[pointer]&lt;m[pointer]-2+topadjust then K[pointer]:=K[pointer]+2 
+else K[pointer]:=-m[pointer]; 
+pointer:=pointer+1;
+if pointer&lt;=rankQ then nextK() else K[rankQ]:=m[rankQ]+topadjust fi; 
+fi;
+end proc;
+#############################################################################
+
+
+p:=Determinant(Q);
+rankQ:=Rank(Q);
+Qinv:=MatrixInverse(Q);
+dlist:=array(1..p);
+QinvKlist:=array(1..p);
+m:=[seq(Q[i,i],i=1..rankQ)];
+m:=Vector(m);
+K:=-m;
+
+
+topadjust:=`if`(full,2,0);
+Klistno:=0;
+spinfound:=false;
+while K[rankQ]&lt;=m[rankQ]-2+topadjust do
+
+pointer:=1;
+
+
+QinvK:=(1/2).Qinv.K;
+dK:=(2*DotProduct(K,QinvK)-rankQ)/4;
+QinvK:=[seq(QinvK[i],i=1..rankQ)];
+
+newclassflag:=true;
+
+for i from 1 to Klistno while newclassflag do
+if nops(remove(is,op(2,op(1,QinvKlist[i]))-QinvK,integer))=0 then newclassflag:=false;
+fi;
+od;
+
+
+if newclassflag then
+Klistno:=Klistno+1; 
+dlist[Klistno]:=dK;
+
+if not spinfound then
+if nops(remove(is,map(x -> 2*x,QinvK),integer))=0 then spinfound:=true; spinindex:=Klistno fi;
+fi; #if not spinfound
+
+QinvKlist[Klistno]:=[[convert(K,Vector),QinvK]];
+else # if newclassflag
+if dK=dlist[i-1] then QinvKlist[i-1]:=[op(QinvKlist[i-1]),[convert(K,Vector),QinvK]] fi;
+if dK&lt;dlist[i-1] then dlist[i-1]:=dK; QinvKlist[i-1]:=[[convert(K,Vector),QinvK]] fi;
+fi; # if newclassflag
+
+nextK();
+
+
+od;  ## while K[rankQ]&lt;=m[rankQ]
+
+
+S:=SmithForm(Q);
+Uq:=SmithForm(Q,output='U');
+biggerthanone:=true;
+exponents:=[];
+
+for i from rankQ by -1 to 1 while biggerthanone do
+if S[i,i]=1 then biggerthanone=false
+else exponents:=[0..S[i,i]-1,op(exponents)]
+fi; #if S[i,i]=1
+od; #for i
+
+numberexp:=nops(exponents);
+darray:=Array(op(exponents));
+
+for i from 1 to p do
+thiselementindex:=[];
+indexvector:=(1/2).Uq.(op([1,1],QinvKlist[i])-op([1,1],QinvKlist[spinindex]));
+for j from rankQ-numberexp+1 to rankQ do
+thiselementindex:=[op(thiselementindex),indexvector[j] mod S[j,j]] od;# for j
+darray[op(thiselementindex)]:=`if`(vectors,[dlist[i],[seq(op([j,1],QinvKlist[i]),j=1..nops(QinvKlist[i]))]],dlist[i]);
+od; #for i
+
+
+return(darray);
+end proc;
+
+q:=n -> Matrix([[n/2+1/2,1],[1,2]])
+
